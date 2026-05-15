@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 import { Target, Send, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
