@@ -108,7 +108,7 @@ export default function App() {
       {/* Landing Header */}
       <header className="p-6 flex justify-center items-center">
         <h1 className="text-2xl font-black tracking-widest bg-gradient-to-r from-blue-400 to-emerald-400 bg-clip-text text-transparent uppercase">
-          AI FIT
+          Fit Guru
         </h1>
       </header>
 
@@ -136,7 +136,7 @@ export default function App() {
           <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/20 to-transparent"></div>
           <div className="absolute bottom-4 left-4 flex items-center gap-2">
              <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
-             <span className="text-xs font-bold uppercase tracking-wider text-white drop-shadow-md">Powered by Gemini 2.5</span>
+             <span className="text-xs font-bold uppercase tracking-wider text-white drop-shadow-md">Made by Pujan.</span>
           </div>
         </div>
 
