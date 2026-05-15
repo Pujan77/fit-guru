@@ -73,13 +73,13 @@ Open http://localhost:5173 in your browser.
 
 This project is optimized for Vercel and Supabase.
 
-- 1. Push your repository to GitHub.
+1. Push your repository to GitHub.
 
-- 2. Import the project into Vercel.
+2. Import the project into Vercel.
 
-- 3. Add your VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to the Vercel Environment Variables.
+3. Add your VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to the Vercel Environment Variables.
 
-- 4. Deploy!
+4. Deploy!
 
 **⚠️ Important: Don't forget to add your live Vercel URL to your Supabase Auth Redirect URLs (Authentication -> URL Configuration) so email confirmations route successfully back to your live app!**
 
