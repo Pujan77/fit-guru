@@ -1,0 +1,8 @@
+@import "tailwindcss";
+
+body {
+  background-color: #0f172a; /* Premium dark slate background for mobile OLED screens */
+  color: #f8fafc;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  -webkit-tap-highlight-color: transparent;
+}
