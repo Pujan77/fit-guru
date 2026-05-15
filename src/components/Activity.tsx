@@ -4,22 +4,27 @@ import { Send, Loader2, Flame } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type { TabProps, ActivityItem } from '../types';
 
+const getLocalDate = () => {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+};
+
 export default function Activity({ session, profile }: TabProps) {
   const [inputLog, setInputLog] = useState('');
   const [loading, setLoading] = useState(false);
   const [totalBurned, setTotalBurned] = useState(0);
   const [activities, setActivities] = useState<ActivityItem[]>([]);
 
-  // FIXED: Moved the fetch function inside useEffect with an isMounted check
   useEffect(() => {
     let isMounted = true;
 
     const fetchActivities = async () => {
+      const today = getLocalDate();
       const { data } = await supabase
         .from('activity_logs')
         .select('*')
         .eq('user_id', session.user.id)
-        .eq('logged_date', new Date().toISOString().split('T')[0]);
+        .eq('logged_date', today);
 
       if (data && data.length > 0 && isMounted) {
         let burned = 0; 
@@ -35,9 +40,7 @@ export default function Activity({ session, profile }: TabProps) {
 
     fetchActivities();
 
-    return () => {
-      isMounted = false;
-    };
+    return () => { isMounted = false; };
   }, [session.user.id]);
 
   const handleProcessLog = async () => {
@@ -45,6 +48,7 @@ export default function Activity({ session, profile }: TabProps) {
     setLoading(true);
     
     try {
+      const today = getLocalDate();
       const { data, error } = await supabase.functions.invoke('process-ai-log', {
         body: { prompt: inputLog, type: 'activity', context: { weight: profile.current_weight_kg } }
       });
@@ -55,7 +59,8 @@ export default function Activity({ session, profile }: TabProps) {
         user_id: session.user.id, 
         raw_input: inputLog, 
         total_calories_burned: data.total_calories_burned, 
-        activities_breakdown: data.activities 
+        activities_breakdown: data.activities,
+        logged_date: today
       });
       
       setTotalBurned(prev => prev + data.total_calories_burned); 

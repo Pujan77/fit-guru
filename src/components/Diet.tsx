@@ -4,22 +4,28 @@ import { Send, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type { TabProps, FoodItem } from '../types';
 
+const getLocalDate = () => {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+};
+
 export default function Diet({ session, profile }: TabProps) {
   const [inputLog, setInputLog] = useState('');
   const [loading, setLoading] = useState(false);
   const [dailyTotals, setDailyTotals] = useState({ calories: 0, protein: 0, carbs: 0, fat: 0 });
   const [foodItems, setFoodItems] = useState<FoodItem[]>([]);
 
-  // FIXED: Moved the fetch function inside useEffect with an isMounted check
+
   useEffect(() => {
     let isMounted = true;
 
     const fetchDiet = async () => {
+      const today = getLocalDate();
       const { data } = await supabase
         .from('nutrition_logs')
         .select('*')
         .eq('user_id', session.user.id)
-        .eq('logged_date', new Date().toISOString().split('T')[0]);
+        .eq('logged_date', today);
 
       if (data && data.length > 0 && isMounted) {
         let cals = 0, prot = 0, carbs = 0, fat = 0;
@@ -40,9 +46,7 @@ export default function Diet({ session, profile }: TabProps) {
 
     fetchDiet();
 
-    return () => {
-      isMounted = false;
-    };
+    return () => { isMounted = false; };
   }, [session.user.id]);
 
   const handleProcessLog = async () => {
@@ -50,6 +54,7 @@ export default function Diet({ session, profile }: TabProps) {
     setLoading(true);
     
     try {
+      const today = getLocalDate();
       const { data, error } = await supabase.functions.invoke('process-ai-log', {
         body: { prompt: inputLog, type: 'food' }
       });
@@ -63,7 +68,8 @@ export default function Diet({ session, profile }: TabProps) {
         total_protein_g: data.totals.total_protein, 
         total_carbs_g: data.totals.total_carbs, 
         total_fat_g: data.totals.total_fat, 
-        items_breakdown: data.items
+        items_breakdown: data.items,
+        logged_date: today 
       });
       
       setDailyTotals(prev => ({ 
@@ -91,7 +97,6 @@ export default function Diet({ session, profile }: TabProps) {
   return (
     <div className="pb-24 animate-in fade-in">
       <div className="space-y-4">
-        {/* Dynamic Goal Bars */}
         <div className="grid grid-cols-2 gap-3">
           <div className="rounded-xl bg-slate-800 p-4 border border-slate-700 shadow-sm">
             <div className="flex justify-between items-end mb-2"><span className="text-xs font-bold text-slate-400">CALORIES</span><span className="text-xl font-black text-amber-500">{dailyTotals.calories} <span className="text-xs text-slate-500 font-medium">/ {profile.daily_target_calories}</span></span></div>
@@ -111,7 +116,6 @@ export default function Diet({ session, profile }: TabProps) {
           </div>
         </div>
 
-        {/* Timeline */}
         <div className="space-y-3 pt-2">
           {foodItems.map((item, idx) => (
             <div key={idx} className="flex justify-between items-center rounded-xl bg-slate-800 p-4 text-sm border border-slate-700/50">

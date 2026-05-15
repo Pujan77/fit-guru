@@ -4,11 +4,15 @@ import { Target, Send, Loader2, CheckCircle, History, RefreshCw } from 'lucide-r
 import toast from 'react-hot-toast';
 import type { TabProps, WorkoutPlan, Exercise } from '../types';
 
+const getLocalDate = () => {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+};
+
 export default function Gym({ session, profile }: TabProps) {
   const [readiness, setReadiness] = useState('Feeling good, standard energy');
   const [workoutPlan, setWorkoutPlan] = useState<WorkoutPlan | null>(null);
   const [isCompleted, setIsCompleted] = useState(false);
-  
   const [inputLog, setInputLog] = useState('');
   const [loading, setLoading] = useState(false);
   const [previousWorkouts, setPreviousWorkouts] = useState<WorkoutPlan[]>([]);
@@ -17,9 +21,8 @@ export default function Gym({ session, profile }: TabProps) {
     let isMounted = true;
 
     const fetchGymData = async () => {
-      const today = new Date().toISOString().split('T')[0];
+      const today = getLocalDate();
 
-      // 1. Fetch Today's Workout
       const { data: todayData } = await supabase
         .from('workout_logs')
         .select('*')
@@ -33,7 +36,6 @@ export default function Gym({ session, profile }: TabProps) {
         setIsCompleted(todayData[0].is_completed);
       }
 
-      // 2. Fetch Workout History (To save AI Usage)
       const { data: historyData } = await supabase
         .from('workout_logs')
         .select('plan_json')
@@ -43,7 +45,6 @@ export default function Gym({ session, profile }: TabProps) {
         .limit(20);
 
       if (historyData && isMounted) {
-        // Deduplicate past workouts by title so we don't show the same "Pull Day" 5 times
         const uniquePlans: WorkoutPlan[] = [];
         const titles = new Set();
         historyData.forEach(item => {
@@ -53,15 +54,13 @@ export default function Gym({ session, profile }: TabProps) {
             uniquePlans.push(plan);
           }
         });
-        setPreviousWorkouts(uniquePlans.slice(0, 5)); // Keep top 5 distinct routines
+        setPreviousWorkouts(uniquePlans.slice(0, 5)); 
       }
     };
 
     fetchGymData();
 
-    return () => {
-      isMounted = false;
-    };
+    return () => { isMounted = false; };
   }, [session.user.id]);
 
   const handleGenerateWorkout = async () => {
@@ -69,6 +68,7 @@ export default function Gym({ session, profile }: TabProps) {
     setLoading(true);
 
     try {
+      const today = getLocalDate();
       const { data, error } = await supabase.functions.invoke('process-ai-log', {
         body: { 
           prompt: inputLog, 
@@ -84,7 +84,8 @@ export default function Gym({ session, profile }: TabProps) {
         target_muscle_group: inputLog,
         readiness_score: readiness,
         plan_json: data,
-        is_completed: false
+        is_completed: false,
+        logged_date: today
       });
 
       setWorkoutPlan(data as WorkoutPlan);
@@ -102,12 +103,14 @@ export default function Gym({ session, profile }: TabProps) {
   const handleLoadPrevious = async (plan: WorkoutPlan) => {
     setLoading(true);
     try {
+      const today = getLocalDate();
       await supabase.from('workout_logs').insert({
         user_id: session.user.id,
         target_muscle_group: 'Loaded from history',
         readiness_score: readiness,
         plan_json: plan,
-        is_completed: false
+        is_completed: false,
+        logged_date: today
       });
       setWorkoutPlan(plan);
       setIsCompleted(false);
@@ -125,16 +128,14 @@ export default function Gym({ session, profile }: TabProps) {
     setLoading(true);
 
     try {
-      const today = new Date().toISOString().split('T')[0];
+      const today = getLocalDate();
       
-      // 1. Mark as completed in the DB
       await supabase.from('workout_logs')
         .update({ is_completed: true })
         .eq('user_id', session.user.id)
         .eq('logged_date', today);
 
-      // 2. Automatically log the calories burned to the Activity Tab!
-      const burnEstimate = workoutPlan.estimated_calories_burned || 300; // Fallback to 300 if older plan
+      const burnEstimate = workoutPlan.estimated_calories_burned || 300; 
       
       await supabase.from('activity_logs').insert({
         user_id: session.user.id,
@@ -144,7 +145,8 @@ export default function Gym({ session, profile }: TabProps) {
           name: workoutPlan.routine_title,
           duration: `${workoutPlan.estimated_minutes} mins`,
           calories_burned: burnEstimate
-        }]
+        }],
+        logged_date: today
       });
 
       setIsCompleted(true);
@@ -178,7 +180,6 @@ export default function Gym({ session, profile }: TabProps) {
             </p>
           </div>
 
-          {/* Quick Load History Section */}
           {previousWorkouts.length > 0 && (
             <div className="space-y-3">
               <div className="flex items-center gap-2 text-slate-400">
@@ -203,7 +204,6 @@ export default function Gym({ session, profile }: TabProps) {
         </div>
       ) : (
         <div className="space-y-4">
-          {/* Header & Completion Status */}
           <div className="flex justify-between items-start border-b border-slate-700 pb-3">
             <div>
               <h3 className="font-bold text-base text-blue-400 leading-tight">{workoutPlan.routine_title}</h3>
@@ -214,7 +214,6 @@ export default function Gym({ session, profile }: TabProps) {
             </span>
           </div>
 
-          {/* Exercises */}
           {workoutPlan.exercises.map((ex: Exercise, idx: number) => (
             <div key={idx} className={`rounded-xl p-4 space-y-1 border shadow-sm transition-colors ${isCompleted ? 'bg-slate-800/50 border-slate-700/30 opacity-70' : 'bg-slate-800 border-slate-700/50'}`}>
               <div className="flex justify-between items-start font-bold text-sm text-white mb-2">
@@ -230,7 +229,6 @@ export default function Gym({ session, profile }: TabProps) {
             </div>
           ))}
 
-          {/* Action Buttons */}
           <div className="pt-4 space-y-3">
             {isCompleted ? (
               <div className="w-full flex justify-center items-center gap-2 py-3.5 rounded-xl bg-emerald-900/20 border border-emerald-800/50 text-emerald-400 font-bold uppercase tracking-wider text-xs">
@@ -257,7 +255,6 @@ export default function Gym({ session, profile }: TabProps) {
         </div>
       )}
 
-      {/* Input Bottom Bar (Only visible if no active plan) */}
       {!workoutPlan && (
         <div className="fixed bottom-[72px] left-0 right-0 mx-auto max-w-md bg-gradient-to-t from-slate-900 via-slate-900 to-transparent p-4 pb-2 z-20">
           <div className="flex items-end gap-2">
