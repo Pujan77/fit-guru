@@ -1,8 +1,18 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
-import { Send, Loader2 } from 'lucide-react';
+import { Send, Loader2, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type { TabProps, FoodItem } from '../types';
+
+// STRICT TYPING: Tell TypeScript exactly what a database row looks like
+interface NutritionLog {
+  id: string;
+  total_calories: number;
+  total_protein_g: number;
+  total_carbs_g: number;
+  total_fat_g: number;
+  items_breakdown: FoodItem[];
+}
 
 const getLocalDate = () => {
   const now = new Date();
@@ -13,8 +23,9 @@ export default function Diet({ session, profile }: TabProps) {
   const [inputLog, setInputLog] = useState('');
   const [loading, setLoading] = useState(false);
   const [dailyTotals, setDailyTotals] = useState({ calories: 0, protein: 0, carbs: 0, fat: 0 });
-  const [foodItems, setFoodItems] = useState<FoodItem[]>([]);
-
+  
+  // NO MORE 'any' - using the strict NutritionLog interface
+  const [logs, setLogs] = useState<NutritionLog[]>([]);
 
   useEffect(() => {
     let isMounted = true;
@@ -25,27 +36,23 @@ export default function Diet({ session, profile }: TabProps) {
         .from('nutrition_logs')
         .select('*')
         .eq('user_id', session.user.id)
-        .eq('logged_date', today);
+        .eq('logged_date', today)
+        .order('created_at', { ascending: true });
 
-      if (data && data.length > 0 && isMounted) {
+      if (data && isMounted) {
         let cals = 0, prot = 0, carbs = 0, fat = 0;
-        let items: FoodItem[] = []; 
-        
         data.forEach(log => {
           cals += log.total_calories; 
           prot += log.total_protein_g; 
           carbs += log.total_carbs_g; 
           fat += log.total_fat_g;
-          items = [...items, ...(log.items_breakdown as FoodItem[])];
         });
-        
         setDailyTotals({ calories: cals, protein: prot, carbs: carbs, fat: fat });
-        setFoodItems(items);
+        setLogs(data as NutritionLog[]);
       }
     };
 
     fetchDiet();
-
     return () => { isMounted = false; };
   }, [session.user.id]);
 
@@ -58,10 +65,9 @@ export default function Diet({ session, profile }: TabProps) {
       const { data, error } = await supabase.functions.invoke('process-ai-log', {
         body: { prompt: inputLog, type: 'food' }
       });
-      
       if (error) throw error;
       
-      await supabase.from('nutrition_logs').insert({
+      const newLog = {
         user_id: session.user.id, 
         raw_input: inputLog, 
         total_calories: data.totals.total_calories, 
@@ -70,7 +76,10 @@ export default function Diet({ session, profile }: TabProps) {
         total_fat_g: data.totals.total_fat, 
         items_breakdown: data.items,
         logged_date: today 
-      });
+      };
+
+      const { data: insertedData, error: insertError } = await supabase.from('nutrition_logs').insert(newLog).select().single();
+      if (insertError) throw insertError;
       
       setDailyTotals(prev => ({ 
         calories: prev.calories + data.totals.total_calories, 
@@ -78,7 +87,8 @@ export default function Diet({ session, profile }: TabProps) {
         carbs: prev.carbs + data.totals.total_carbs, 
         fat: prev.fat + data.totals.total_fat 
       }));
-      setFoodItems(prev => [...prev, ...(data.items as FoodItem[])]);
+      
+      setLogs(prev => [...prev, insertedData as NutritionLog]);
       setInputLog('');
       toast.success('Meal tracked!');
     } catch (err: unknown) { 
@@ -86,6 +96,25 @@ export default function Diet({ session, profile }: TabProps) {
       toast.error('Failed to parse diet log.'); 
     } finally { 
       setLoading(false); 
+    }
+  };
+
+  const handleDeleteLog = async (logId: string, logCals: number, logProt: number, logCarbs: number, logFat: number) => {
+    try {
+      const { error } = await supabase.from('nutrition_logs').delete().eq('id', logId);
+      if (error) throw error;
+
+      setLogs(prev => prev.filter(log => log.id !== logId));
+      setDailyTotals(prev => ({
+        calories: Math.max(0, prev.calories - logCals),
+        protein: Math.max(0, prev.protein - logProt),
+        carbs: Math.max(0, prev.carbs - logCarbs),
+        fat: Math.max(0, prev.fat - logFat),
+      }));
+      toast.success('Entry removed');
+    } catch (err) {
+      console.error('Delete error:', err);
+      toast.error('Failed to delete entry');
     }
   };
 
@@ -117,10 +146,22 @@ export default function Diet({ session, profile }: TabProps) {
         </div>
 
         <div className="space-y-3 pt-2">
-          {foodItems.map((item, idx) => (
-            <div key={idx} className="flex justify-between items-center rounded-xl bg-slate-800 p-4 text-sm border border-slate-700/50">
-              <div><p className="font-bold text-slate-100">{item.name}</p><p className="text-[11px] text-slate-400">{item.portion}</p></div>
-              <div className="text-right"><p className="font-bold text-amber-400">{item.calories} kcal</p><p className="text-[10px] text-slate-400 font-mono">P:{item.protein_g} C:{item.carbs_g} F:{item.fat_g}</p></div>
+          {logs.map((log) => (
+            <div key={log.id} className="relative rounded-xl bg-slate-800 p-4 text-sm border border-slate-700/50 group">
+              <button 
+                onClick={() => handleDeleteLog(log.id, log.total_calories, log.total_protein_g, log.total_carbs_g, log.total_fat_g)}
+                className="absolute top-2 right-2 p-1.5 text-slate-500 hover:text-red-500 bg-slate-900 rounded-lg border border-slate-700 opacity-80 transition"
+                title="Delete Entry"
+              >
+                <Trash2 size={16} />
+              </button>
+              
+              {log.items_breakdown.map((item: FoodItem, idx: number) => (
+                <div key={idx} className="flex justify-between items-center mt-3 first:mt-0 pr-8">
+                  <div><p className="font-bold text-slate-100">{item.name}</p><p className="text-[11px] text-slate-400">{item.portion}</p></div>
+                  <div className="text-right"><p className="font-bold text-amber-400">{item.calories} kcal</p><p className="text-[10px] text-slate-400 font-mono">P:{item.protein_g} C:{item.carbs_g} F:{item.fat_g}</p></div>
+                </div>
+              ))}
             </div>
           ))}
         </div>

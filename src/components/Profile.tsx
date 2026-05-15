@@ -22,7 +22,7 @@ export default function Profile({ session, profile, setProfile }: ProfileProps) 
       
       if (aiError) throw aiError;
 
-      // 1. EXACT MAPPING: Translate AI JSON schema keys to Supabase Column names
+      // 1. Map AI response to database columns
       const aiMappedData = {
         daily_target_calories: aiData.daily_calories,
         daily_target_protein_g: aiData.protein_g,
@@ -33,9 +33,21 @@ export default function Profile({ session, profile, setProfile }: ProfileProps) 
 
       const completeProfile = { ...formData, ...aiMappedData };
 
-    // 2. Remove the ID so we don't try to update the database primary key
-      const updatePayload: Partial<UserProfile> = { ...completeProfile };
-      delete updatePayload.id;
+      // 2. Explicitly map payload to avoid 'any', unused 'id'/'created_at', or accidental DB errors
+      const updatePayload = {
+        display_name: completeProfile.display_name,
+        gender: completeProfile.gender,
+        height_cm: completeProfile.height_cm,
+        current_weight_kg: completeProfile.current_weight_kg,
+        target_weight_kg: completeProfile.target_weight_kg,
+        primary_goal: completeProfile.primary_goal,
+        target_date: completeProfile.target_date,
+        daily_target_calories: completeProfile.daily_target_calories,
+        daily_target_protein_g: completeProfile.daily_target_protein_g,
+        daily_target_carbs_g: completeProfile.daily_target_carbs_g,
+        daily_target_fat_g: completeProfile.daily_target_fat_g,
+        daily_target_burn_calories: completeProfile.daily_target_burn_calories,
+      };
 
       const { error } = await supabase.from('profiles').update(updatePayload).eq('id', session.user.id);
       if (error) throw error;
@@ -55,16 +67,52 @@ export default function Profile({ session, profile, setProfile }: ProfileProps) 
       <div className="rounded-xl bg-slate-800 p-6 border border-slate-700 shadow-sm">
         <h2 className="text-xl font-bold mb-4 border-b border-slate-700 pb-2">Your AI Goals</h2>
         <form onSubmit={handleSave} className="space-y-4">
-          <div><label className="text-xs text-slate-400 font-bold uppercase">Name</label><input type="text" required value={formData.display_name || ''} onChange={e => setFormData({...formData, display_name: e.target.value})} className="w-full mt-1 p-3 rounded-lg bg-slate-900 text-white border border-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500" /></div>
-          <div className="grid grid-cols-2 gap-4">
-            <div><label className="text-xs text-slate-400 font-bold uppercase">Height (cm)</label><input type="number" required value={formData.height_cm || ''} onChange={e => setFormData({...formData, height_cm: Number(e.target.value)})} className="w-full mt-1 p-3 rounded-lg bg-slate-900 text-white border border-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500" /></div>
-            <div><label className="text-xs text-slate-400 font-bold uppercase">Current Wt (kg)</label><input type="number" step="0.1" required value={formData.current_weight_kg || ''} onChange={e => setFormData({...formData, current_weight_kg: Number(e.target.value)})} className="w-full mt-1 p-3 rounded-lg bg-slate-900 text-white border border-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500" /></div>
+          <div>
+            <label className="text-xs text-slate-400 font-bold uppercase">Name</label>
+            <input type="text" required value={formData.display_name || ''} onChange={e => setFormData({...formData, display_name: e.target.value})} className="w-full mt-1 p-3 rounded-lg bg-slate-900 text-white border border-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500" />
           </div>
-          <div><label className="text-xs text-slate-400 font-bold uppercase">Primary Goal</label><select value={formData.primary_goal || 'Fat Loss'} onChange={e => setFormData({...formData, primary_goal: e.target.value})} className="w-full mt-1 p-3 rounded-lg bg-slate-900 text-white border border-slate-700 appearance-none focus:outline-none focus:ring-1 focus:ring-blue-500"><option>Fat Loss</option><option>Hypertrophy (Muscle Gain)</option><option>Maintenance</option></select></div>
+
           <div className="grid grid-cols-2 gap-4">
-            <div><label className="text-xs text-slate-400 font-bold uppercase">Target Wt (kg)</label><input type="number" step="0.1" required value={formData.target_weight_kg || ''} onChange={e => setFormData({...formData, target_weight_kg: Number(e.target.value)})} className="w-full mt-1 p-3 rounded-lg bg-slate-900 text-white border border-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500" /></div>
-            <div><label className="text-xs text-slate-400 font-bold uppercase">Target Date</label><input type="date" required value={formData.target_date || ''} onChange={e => setFormData({...formData, target_date: e.target.value})} className="w-full mt-1 p-3 rounded-lg bg-slate-900 text-white border border-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500" /></div>
+            <div>
+              <label className="text-xs text-slate-400 font-bold uppercase">Gender</label>
+              <select required value={formData.gender || ''} onChange={e => setFormData({...formData, gender: e.target.value})} className="w-full mt-1 p-3 rounded-lg bg-slate-900 text-white border border-slate-700 appearance-none focus:outline-none focus:ring-1 focus:ring-blue-500">
+                <option value="" disabled>Select</option>
+                <option value="Male">Male</option>
+                <option value="Female">Female</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-xs text-slate-400 font-bold uppercase">Height (cm)</label>
+              <input type="number" required value={formData.height_cm || ''} onChange={e => setFormData({...formData, height_cm: Number(e.target.value)})} className="w-full mt-1 p-3 rounded-lg bg-slate-900 text-white border border-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500" />
+            </div>
           </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-xs text-slate-400 font-bold uppercase">Current Wt (kg)</label>
+              <input type="number" step="0.1" required value={formData.current_weight_kg || ''} onChange={e => setFormData({...formData, current_weight_kg: Number(e.target.value)})} className="w-full mt-1 p-3 rounded-lg bg-slate-900 text-white border border-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500" />
+            </div>
+            <div>
+              <label className="text-xs text-slate-400 font-bold uppercase">Primary Goal</label>
+              <select value={formData.primary_goal || 'Fat Loss'} onChange={e => setFormData({...formData, primary_goal: e.target.value})} className="w-full mt-1 p-3 rounded-lg bg-slate-900 text-white border border-slate-700 appearance-none focus:outline-none focus:ring-1 focus:ring-blue-500">
+                <option>Fat Loss</option>
+                <option>Hypertrophy</option>
+                <option>Maintenance</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-xs text-slate-400 font-bold uppercase">Target Wt (kg)</label>
+              <input type="number" step="0.1" required value={formData.target_weight_kg || ''} onChange={e => setFormData({...formData, target_weight_kg: Number(e.target.value)})} className="w-full mt-1 p-3 rounded-lg bg-slate-900 text-white border border-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500" />
+            </div>
+            <div>
+              <label className="text-xs text-slate-400 font-bold uppercase">Target Date</label>
+              <input type="date" required value={formData.target_date || ''} onChange={e => setFormData({...formData, target_date: e.target.value})} className="w-full mt-1 p-3 rounded-lg bg-slate-900 text-white border border-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500" />
+            </div>
+          </div>
+
           <button type="submit" disabled={loading} className="w-full mt-6 flex justify-center items-center rounded-xl bg-emerald-600 p-4 font-bold text-white hover:bg-emerald-500 transition shadow-lg shadow-emerald-900/20 disabled:opacity-50">
              {loading ? <Loader2 className="animate-spin mr-2" size={20} /> : null} Recalculate AI Targets
           </button>

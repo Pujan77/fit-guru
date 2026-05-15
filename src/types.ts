@@ -32,6 +32,7 @@ export interface ActivityItem {
 export interface UserProfile {
   id: string;
   display_name: string;
+  gender?: string; 
   height_cm: number;
   current_weight_kg: number;
   target_weight_kg: number;

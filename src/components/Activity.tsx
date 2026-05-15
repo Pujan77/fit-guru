@@ -1,8 +1,15 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
-import { Send, Loader2, Flame } from 'lucide-react';
+import { Send, Loader2, Flame, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type { TabProps, ActivityItem } from '../types';
+
+// STRICT TYPING: Tell TypeScript exactly what an Activity DB row looks like
+interface ActivityLog {
+  id: string;
+  total_calories_burned: number;
+  activities_breakdown: ActivityItem[];
+}
 
 const getLocalDate = () => {
   const now = new Date();
@@ -13,7 +20,9 @@ export default function Activity({ session, profile }: TabProps) {
   const [inputLog, setInputLog] = useState('');
   const [loading, setLoading] = useState(false);
   const [totalBurned, setTotalBurned] = useState(0);
-  const [activities, setActivities] = useState<ActivityItem[]>([]);
+  
+  // NO MORE 'any' - using the strict ActivityLog interface
+  const [logs, setLogs] = useState<ActivityLog[]>([]);
 
   useEffect(() => {
     let isMounted = true;
@@ -24,22 +33,18 @@ export default function Activity({ session, profile }: TabProps) {
         .from('activity_logs')
         .select('*')
         .eq('user_id', session.user.id)
-        .eq('logged_date', today);
+        .eq('logged_date', today)
+        .order('created_at', { ascending: true });
 
-      if (data && data.length > 0 && isMounted) {
+      if (data && isMounted) {
         let burned = 0; 
-        let items: ActivityItem[] = [];
-        data.forEach(log => { 
-          burned += log.total_calories_burned; 
-          items = [...items, ...(log.activities_breakdown as ActivityItem[])]; 
-        });
+        data.forEach(log => { burned += log.total_calories_burned; });
         setTotalBurned(burned); 
-        setActivities(items);
+        setLogs(data as ActivityLog[]);
       }
     };
 
     fetchActivities();
-
     return () => { isMounted = false; };
   }, [session.user.id]);
 
@@ -52,19 +57,21 @@ export default function Activity({ session, profile }: TabProps) {
       const { data, error } = await supabase.functions.invoke('process-ai-log', {
         body: { prompt: inputLog, type: 'activity', context: { weight: profile.current_weight_kg } }
       });
-      
       if (error) throw error;
       
-      await supabase.from('activity_logs').insert({ 
+      const newLog = { 
         user_id: session.user.id, 
         raw_input: inputLog, 
         total_calories_burned: data.total_calories_burned, 
         activities_breakdown: data.activities,
         logged_date: today
-      });
-      
+      };
+
+      const { data: insertedData, error: insertError } = await supabase.from('activity_logs').insert(newLog).select().single();
+      if (insertError) throw insertError;
+
       setTotalBurned(prev => prev + data.total_calories_burned); 
-      setActivities(prev => [...prev, ...(data.activities as ActivityItem[])]);
+      setLogs(prev => [...prev, insertedData as ActivityLog]);
       setInputLog(''); 
       toast.success('Activity logged!');
     } catch (err: unknown) { 
@@ -72,6 +79,20 @@ export default function Activity({ session, profile }: TabProps) {
       toast.error('Failed to log activity.'); 
     } finally { 
       setLoading(false); 
+    }
+  };
+
+  const handleDeleteLog = async (logId: string, caloriesBurned: number) => {
+    try {
+      const { error } = await supabase.from('activity_logs').delete().eq('id', logId);
+      if (error) throw error;
+
+      setLogs(prev => prev.filter(log => log.id !== logId));
+      setTotalBurned(prev => Math.max(0, prev - caloriesBurned));
+      toast.success('Entry removed');
+    } catch (err) {
+      console.error('Delete error:', err);
+      toast.error('Failed to delete entry');
     }
   };
 
@@ -87,10 +108,21 @@ export default function Activity({ session, profile }: TabProps) {
       </div>
 
       <div className="space-y-3">
-        {activities.map((item, idx) => (
-          <div key={idx} className="flex justify-between items-center rounded-xl bg-slate-800 p-4 border border-slate-700/50">
-            <div><p className="font-bold text-slate-100">{item.name}</p><p className="text-xs text-slate-400">{item.duration}</p></div>
-            <p className="font-bold text-orange-400">{item.calories_burned} kcal</p>
+        {logs.map((log) => (
+          <div key={log.id} className="relative rounded-xl bg-slate-800 p-4 border border-slate-700/50 group">
+            <button 
+                onClick={() => handleDeleteLog(log.id, log.total_calories_burned)}
+                className="absolute top-2 right-2 p-1.5 text-slate-500 hover:text-red-500 bg-slate-900 rounded-lg border border-slate-700 opacity-80 transition"
+                title="Delete Entry"
+              >
+                <Trash2 size={16} />
+            </button>
+            {log.activities_breakdown.map((item: ActivityItem, idx: number) => (
+              <div key={idx} className="flex justify-between items-center mt-2 first:mt-0 pr-8">
+                <div><p className="font-bold text-slate-100">{item.name}</p><p className="text-xs text-slate-400">{item.duration}</p></div>
+                <p className="font-bold text-orange-400">{item.calories_burned} kcal</p>
+              </div>
+            ))}
           </div>
         ))}
       </div>
