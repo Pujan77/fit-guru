@@ -6,6 +6,7 @@ create table public.profiles (
   id uuid references auth.users on delete cascade primary key,
   display_name text,
   height_cm numeric,
+  gender text,
   current_weight_kg numeric,
   target_weight_kg numeric,
   primary_goal text,
