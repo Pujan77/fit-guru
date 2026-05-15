@@ -4,7 +4,6 @@ import { Loader2, LogOut } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type { TabProps, UserProfile } from '../types';
 
-// Extend TabProps to include the setter function from App.tsx
 interface ProfileProps extends TabProps {
   setProfile: (profile: UserProfile) => void;
 }
@@ -23,9 +22,22 @@ export default function Profile({ session, profile, setProfile }: ProfileProps) 
       
       if (aiError) throw aiError;
 
-      const completeProfile = { ...formData, ...aiData };
+      // 1. EXACT MAPPING: Translate AI JSON schema keys to Supabase Column names
+      const aiMappedData = {
+        daily_target_calories: aiData.daily_calories,
+        daily_target_protein_g: aiData.protein_g,
+        daily_target_carbs_g: aiData.carbs_g,
+        daily_target_fat_g: aiData.fat_g,
+        daily_target_burn_calories: aiData.daily_burn_goal
+      };
 
-      const { error } = await supabase.from('profiles').update(completeProfile).eq('id', session.user.id);
+      const completeProfile = { ...formData, ...aiMappedData };
+
+    // 2. Remove the ID so we don't try to update the database primary key
+      const updatePayload: Partial<UserProfile> = { ...completeProfile };
+      delete updatePayload.id;
+
+      const { error } = await supabase.from('profiles').update(updatePayload).eq('id', session.user.id);
       if (error) throw error;
 
       setProfile(completeProfile as UserProfile);
@@ -39,27 +51,27 @@ export default function Profile({ session, profile, setProfile }: ProfileProps) 
   };
 
   return (
-    <div className="pb-24 animate-in fade-in">
+    <div className="pb-32 animate-in fade-in space-y-6">
       <div className="rounded-xl bg-slate-800 p-6 border border-slate-700 shadow-sm">
         <h2 className="text-xl font-bold mb-4 border-b border-slate-700 pb-2">Your AI Goals</h2>
         <form onSubmit={handleSave} className="space-y-4">
-          <div><label className="text-xs text-slate-400 font-bold uppercase">Name</label><input type="text" required value={formData.display_name || ''} onChange={e => setFormData({...formData, display_name: e.target.value})} className="w-full mt-1 p-3 rounded-lg bg-slate-900 text-white border border-slate-700" /></div>
+          <div><label className="text-xs text-slate-400 font-bold uppercase">Name</label><input type="text" required value={formData.display_name || ''} onChange={e => setFormData({...formData, display_name: e.target.value})} className="w-full mt-1 p-3 rounded-lg bg-slate-900 text-white border border-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500" /></div>
           <div className="grid grid-cols-2 gap-4">
-            <div><label className="text-xs text-slate-400 font-bold uppercase">Height (cm)</label><input type="number" required value={formData.height_cm || ''} onChange={e => setFormData({...formData, height_cm: Number(e.target.value)})} className="w-full mt-1 p-3 rounded-lg bg-slate-900 text-white border border-slate-700" /></div>
-            <div><label className="text-xs text-slate-400 font-bold uppercase">Current Wt (kg)</label><input type="number" step="0.1" required value={formData.current_weight_kg || ''} onChange={e => setFormData({...formData, current_weight_kg: Number(e.target.value)})} className="w-full mt-1 p-3 rounded-lg bg-slate-900 text-white border border-slate-700" /></div>
+            <div><label className="text-xs text-slate-400 font-bold uppercase">Height (cm)</label><input type="number" required value={formData.height_cm || ''} onChange={e => setFormData({...formData, height_cm: Number(e.target.value)})} className="w-full mt-1 p-3 rounded-lg bg-slate-900 text-white border border-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500" /></div>
+            <div><label className="text-xs text-slate-400 font-bold uppercase">Current Wt (kg)</label><input type="number" step="0.1" required value={formData.current_weight_kg || ''} onChange={e => setFormData({...formData, current_weight_kg: Number(e.target.value)})} className="w-full mt-1 p-3 rounded-lg bg-slate-900 text-white border border-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500" /></div>
           </div>
-          <div><label className="text-xs text-slate-400 font-bold uppercase">Primary Goal</label><select value={formData.primary_goal || 'Fat Loss'} onChange={e => setFormData({...formData, primary_goal: e.target.value})} className="w-full mt-1 p-3 rounded-lg bg-slate-900 text-white border border-slate-700 appearance-none"><option>Fat Loss</option><option>Hypertrophy (Muscle Gain)</option><option>Maintenance</option></select></div>
+          <div><label className="text-xs text-slate-400 font-bold uppercase">Primary Goal</label><select value={formData.primary_goal || 'Fat Loss'} onChange={e => setFormData({...formData, primary_goal: e.target.value})} className="w-full mt-1 p-3 rounded-lg bg-slate-900 text-white border border-slate-700 appearance-none focus:outline-none focus:ring-1 focus:ring-blue-500"><option>Fat Loss</option><option>Hypertrophy (Muscle Gain)</option><option>Maintenance</option></select></div>
           <div className="grid grid-cols-2 gap-4">
-            <div><label className="text-xs text-slate-400 font-bold uppercase">Target Wt (kg)</label><input type="number" step="0.1" required value={formData.target_weight_kg || ''} onChange={e => setFormData({...formData, target_weight_kg: Number(e.target.value)})} className="w-full mt-1 p-3 rounded-lg bg-slate-900 text-white border border-slate-700" /></div>
-            <div><label className="text-xs text-slate-400 font-bold uppercase">Target Date</label><input type="date" required value={formData.target_date || ''} onChange={e => setFormData({...formData, target_date: e.target.value})} className="w-full mt-1 p-3 rounded-lg bg-slate-900 text-white border border-slate-700" /></div>
+            <div><label className="text-xs text-slate-400 font-bold uppercase">Target Wt (kg)</label><input type="number" step="0.1" required value={formData.target_weight_kg || ''} onChange={e => setFormData({...formData, target_weight_kg: Number(e.target.value)})} className="w-full mt-1 p-3 rounded-lg bg-slate-900 text-white border border-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500" /></div>
+            <div><label className="text-xs text-slate-400 font-bold uppercase">Target Date</label><input type="date" required value={formData.target_date || ''} onChange={e => setFormData({...formData, target_date: e.target.value})} className="w-full mt-1 p-3 rounded-lg bg-slate-900 text-white border border-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500" /></div>
           </div>
-          <button type="submit" disabled={loading} className="w-full mt-6 flex justify-center items-center rounded-lg bg-emerald-600 p-4 font-bold text-white hover:bg-emerald-500 disabled:opacity-50">
+          <button type="submit" disabled={loading} className="w-full mt-6 flex justify-center items-center rounded-xl bg-emerald-600 p-4 font-bold text-white hover:bg-emerald-500 transition shadow-lg shadow-emerald-900/20 disabled:opacity-50">
              {loading ? <Loader2 className="animate-spin mr-2" size={20} /> : null} Recalculate AI Targets
           </button>
         </form>
       </div>
       
-      <button onClick={() => supabase.auth.signOut()} className="w-full mt-4 flex items-center justify-center gap-2 rounded-lg border border-red-900/50 bg-red-950/30 p-4 font-bold text-red-500">
+      <button onClick={() => supabase.auth.signOut()} className="w-full mt-4 flex items-center justify-center gap-2 rounded-xl border border-red-900/50 bg-red-950/30 p-4 font-bold text-red-500 transition hover:bg-red-900/40">
         <LogOut size={18} /> Sign Out
       </button>
     </div>

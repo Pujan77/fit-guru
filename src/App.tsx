@@ -32,13 +32,15 @@ export default function App() {
     }
   }, []);
 
-  // Safely hoisted fetch profile function
+// Safely hoisted fetch profile function
   const fetchProfile = useCallback(async (userId: string) => {
     const { data } = await supabase.from('profiles').select('*').eq('id', userId).single();
     if (data) {
       setProfile(data as UserProfile);
-      // Force user to setup profile if AI hasn't calculated macros yet
-      if (!data.daily_target_calories) {
+      
+      // FIX: Check for height_cm or target_weight instead of calories!
+      // If they haven't filled out their physical stats, force them to the Profile tab.
+      if (!data.height_cm || !data.target_weight_kg) {
         setActiveTab('profile'); 
       }
     }
