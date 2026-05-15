@@ -20,9 +20,9 @@ export interface Exercise {
 export interface WorkoutPlan {
   routine_title: string;
   estimated_minutes: number;
+  estimated_calories_burned: number; 
   exercises: Exercise[];
 }
-
 export interface ActivityItem {
   name: string;
   duration: string;
