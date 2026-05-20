@@ -27,11 +27,9 @@ export default function WeightPrompt({ session, profile, setProfile }: WeightPro
     const checkDailyWeight = async () => {
       const today = getLocalDate();
       
-      // 1. Check if user already dismissed it today
       const dismissedDate = localStorage.getItem('weight_prompt_dismissed');
       if (dismissedDate === today) return;
 
-      // 2. Check the database to see if a weight was already logged today
       const { data, error } = await supabase
         .from('weight_logs')
         .select('id')
@@ -44,9 +42,7 @@ export default function WeightPrompt({ session, profile, setProfile }: WeightPro
         return;
       }
 
-      // If no data exists for today, show the prompt!
       if (!data && isMounted) {
-        // Add a slight delay so it doesn't jarringly pop up before the dashboard loads
         setTimeout(() => setShowModal(true), 1000);
       }
     };
@@ -81,16 +77,33 @@ export default function WeightPrompt({ session, profile, setProfile }: WeightPro
       });
       if (logError) throw logError;
 
-      // 2. Update the active profile
+      // 2. Ask AI to recalculate macros using the NEW weight
+      const updatedContext = { ...profile, current_weight_kg: numericWeight };
+      const { data: aiData, error: aiError } = await supabase.functions.invoke('process-ai-log', {
+        body: { type: 'calculate_macros', context: updatedContext }
+      });
+      if (aiError) throw aiError;
+
+      // Map the AI response to database columns
+      const updatePayload = {
+        current_weight_kg: numericWeight,
+        daily_target_calories: aiData.daily_calories,
+        daily_target_protein_g: aiData.protein_g,
+        daily_target_carbs_g: aiData.carbs_g,
+        daily_target_fat_g: aiData.fat_g,
+        daily_target_burn_calories: aiData.daily_burn_goal
+      };
+
+      // 3. Update the active profile with new weight AND new targets
       const { error: profileError } = await supabase.from('profiles')
-        .update({ current_weight_kg: numericWeight })
+        .update(updatePayload)
         .eq('id', session.user.id);
       if (profileError) throw profileError;
 
-      // 3. Update local state
-      setProfile({ ...profile, current_weight_kg: numericWeight });
+      // 4. Update global React state so the UI reflects the new targets instantly
+      setProfile({ ...profile, ...updatePayload });
       
-      toast.success('Weight logged!');
+      toast.success('Weight logged & AI targets updated!');
       setShowModal(false);
     } catch (err) {
       console.error(err);
@@ -143,9 +156,10 @@ export default function WeightPrompt({ session, profile, setProfile }: WeightPro
             <button 
               onClick={handleSave}
               disabled={loading}
-              className="flex-1 py-3 rounded-xl bg-blue-600 text-white font-bold text-sm shadow-lg shadow-blue-900/20 hover:bg-blue-500 transition disabled:opacity-50 flex justify-center items-center"
+              className="flex-1 py-3 rounded-xl bg-blue-600 text-white font-bold text-sm shadow-lg shadow-blue-900/20 hover:bg-blue-500 transition disabled:opacity-50 flex justify-center items-center gap-2"
             >
-              {loading ? <Loader2 size={18} className="animate-spin" /> : 'Log & Save'}
+              {loading ? <Loader2 size={18} className="animate-spin" /> : null}
+              {loading ? 'Recalculating...' : 'Log & Recalculate'}
             </button>
           </div>
         </div>
