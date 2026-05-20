@@ -9,6 +9,7 @@ import Diet from './components/Diet';
 import Gym from './components/Gym';
 import Activity from './components/Activity';
 import Profile from './components/Profile';
+import WeightPrompt from './components/WeightPrompt';
 import type { UserProfile } from './types';
 
 export default function App() {
@@ -214,6 +215,11 @@ export default function App() {
         <h1 className="text-2xl font-black bg-gradient-to-r from-blue-400 to-emerald-400 bg-clip-text text-transparent">Fit Guru</h1>
       </header>
       
+      {/* NEW: Mount the prompt globally here! */}
+      {profile && session && (
+        <WeightPrompt session={session} profile={profile} setProfile={setProfile} />
+      )}
+
       <main className="flex-1 p-4">
         {/* Render Active Tab Component */}
         {profile && activeTab === 'diet' && <Diet session={session} profile={profile} />}
